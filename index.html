@@ -141,6 +141,17 @@ const VIEW = [
   ['이름', '주문자 이름'], ['전화번호', '주문자 전화번호'],
   ['결제금액(원)'], ['입금자명'], ['입금확인'], ['출고'], ['송장번호'],
 ];
+// 복수주문: 같은 주문자 전화번호 + 같은 입금자명(복수주문 표시 제외)의 주문을 한 묶음으로 봅니다 (한 번에 입금하는 건)
+const MULTI = /\s*\(복수주문\)\s*$/;
+function groupKey(r){
+  const dep = String(r[H('입금자명')] || '');
+  if(!MULTI.test(dep)) return null;
+  return String(r[H('전화번호')] || '').replace(/\D/g,'') + '|' + dep.replace(MULTI, '');
+}
+function groupOf(r){
+  const k = groupKey(r); if(!k) return null;
+  return ROWS.filter(x => groupKey(x) === k);
+}
 const viewCols = () => VIEW.map(v => ({ idx: H(v[0]), label: v[1] || v[0] })).filter(c => c.idx >= 0);
 
 function fmtPhone(p){
@@ -267,6 +278,10 @@ function render(){
         let t = esc(c);
         if(phoneIdx.indexOf(i) >= 0) t = esc(fmtPhone(c));
         else if(i === mi) t = esc(won(c));
+        else if(i === H('입금자명') && groupKey(r)){
+          const g = groupOf(r), gs = g.reduce((a, x) => a + Number(x[mi] || 0), 0);
+          t = esc(c) + `<br><span class="tag wait" title="같은 주문자의 묶음 입금 건">합산 ${g.length}건 · ${won(gs)}원</span>`;
+        }
         else if(i === ai) t = `<label style="cursor:pointer"><input type="checkbox" class="chk" data-no="${no}" data-field="paid" ${paid ? 'checked' : ''}><span class="ts">${paid ? esc(c) : '입금 대기'}</span></label>`;
         else if(i === si) t = `<label style="cursor:pointer"><input type="checkbox" class="chk s" data-no="${no}" data-field="shipped" ${shipped ? 'checked' : ''}><span class="ts">${shipped ? esc(c) : ''}</span></label>`;
         return `<td class="${i === mi ? 'num' : ''}">${t}</td>`;
@@ -295,8 +310,17 @@ $('tbl').addEventListener('change', async (e) => {
     const row = ROWS.find(r => String(r[H('주문번호')]) === no);
     if(row && !isOn(row[H('입금확인')]) && !confirm('입금이 확인되지 않은 주문입니다. 그래도 출고 처리할까요?')){ b.checked = false; return; }
   }
+  let targets = [no];
+  if(on && field === 'paid'){
+    const row = ROWS.find(r => String(r[H('주문번호')]) === no), g = row && groupOf(row);
+    if(g && g.length > 1){
+      const rest = g.filter(x => !isOn(x[H('입금확인')]));
+      if(rest.length > 1 && confirm(`같은 주문자의 복수주문 ${g.length}건(합계 ${won(g.reduce((a, x) => a + Number(x[H('결제금액(원)')] || 0), 0))}원) 중 입금 확인 안 된 ${rest.length}건을 모두 입금확인할까요?\n[확인] 전체 ${rest.length}건 · [취소] 이 건만`))
+        targets = rest.map(x => String(x[H('주문번호')]));
+    }
+  }
   b.disabled = true;
-  try{ await setStatus([no], field, on); }catch(err){ showActErr(err.message); b.checked = !on; b.disabled = false; }
+  try{ await setStatus(targets, field, on); }catch(err){ showActErr(err.message); b.checked = !on; b.disabled = false; }
 });
 $('bulkShip').addEventListener('click', async () => {
   const rows = view(), ni = H('주문번호');
