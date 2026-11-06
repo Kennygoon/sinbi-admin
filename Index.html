@@ -108,13 +108,13 @@
     <div class="msg" id="count"></div>
     <div class="msg err" id="actErr" hidden></div>
     <div class="tablewrap"><table id="tbl"></table></div>
-    <p class="msg" style="font-size:12px">화면 버전 2026-11-06-e · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
+    <p class="msg" style="font-size:12px">화면 버전 2026-11-06-f · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
     <p class="msg">
       · <b>입금확인</b> 칸을 체크하면 ‘발송 대기’로 넘어가고, <b>출고</b> 칸을 체크하면 ‘발송 완료’로 넘어갑니다. 실수했다면 체크를 해제하면 됩니다. 체크한 시각이 함께 기록됩니다.<br>
       · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
       · ‘발송 대기’는 <b>입금 확인한 순서</b>대로 보여줍니다. 입금 순서대로 배송하는 기준으로 쓰세요.
     </p>
-    <p class="msg">· <b>CJ 송장 양식 다운로드</b>: 지금 화면에 보이는 줄을 CJ 업로드 양식(보내는분 성명 … 품목명) 순서 그대로 내려받습니다. 메시지1은 특과/중과/소과, 박스수량은 주문 수량이며, 상품이 2가지 이상이면 다음 줄에 이어서 들어갑니다. <b>‘발송 대기’ 탭</b>에서 받으면 입금 확인된 미발송 건만 담깁니다. (보내는분·기본운임·품목명은 CJ 양식 샘플처럼 비워 둡니다)</p>
+    <p class="msg">· <b>CJ 송장 양식 다운로드</b>: 지금 화면에 보이는 줄을 CJ 업로드 양식(보내는분 성명 … 품목명) 순서 그대로 내려받습니다. 메시지1은 특과/중과/소과, 박스수량은 주문 수량이며, 상품이 2가지 이상이면 다음 줄에 이어서 들어갑니다. <b>‘발송 대기’ 탭</b>에서 받으면 입금 확인된 미발송 건만 담깁니다. 기본운임은 박스당 특품 4,000원 · 중과/소과 4,500원 × 박스수량, 품목명은 단감(특품)/단감(중과)/단감(소과)입니다. (보내는분은 CJ 양식 샘플처럼 비워 둡니다)</p>
   </div>
 </div>
 
@@ -130,9 +130,9 @@ let KEY = '', HEADERS = [], ROWS = [];
 let TAB = 'all', PROD = 'all';
 
 const PRODUCTS = [
-  { key:'special', label:'특품 5kg',  line:'특품5kg',  cj:'특과', price:38000 },
-  { key:'grade',   label:'상품 10kg', line:'상품10kg', cj:'중과', price:34000 },
-  { key:'normal',  label:'보통 10kg', line:'보통10kg', cj:'소과', price:24000 },
+  { key:'special', label:'특품 5kg',  line:'특품5kg',  cj:'특과', cjName:'단감(특품)', freight:4000, price:38000 },
+  { key:'grade',   label:'상품 10kg', line:'상품10kg', cj:'중과', cjName:'단감(중과)', freight:4500, price:34000 },
+  { key:'normal',  label:'보통 10kg', line:'보통10kg', cj:'소과', cjName:'단감(소과)', freight:4500, price:24000 },
 ];
 // 한 주문에 상품이 여러 가지면 상품마다 한 줄씩이고, 주문번호는 261105-0001 / 261105-0001-2 …
 const baseNo = (no) => { const m = String(no || '').trim().match(/^(\d{6}-\d{4})(?:-\d+)?$/); return m ? m[1] : String(no || '').trim(); };
@@ -374,7 +374,7 @@ $('bulkShip').addEventListener('click', async () => {
 
 /* ---------- CJ 송장 양식 다운로드: 업로드 양식(CJ 제공 파일)의 열 순서 그대로 ---------- */
 const CJ_HEAD = ['보내는분 성명','보내는분전화번호','보내는분주소(전체, 분활)','받는분성명','받는 분전화번호','받는분주소(전체, 분할)','메시지1','기본운임','박스수량','품목명'];
-const CJ_MSG = {}; PRODUCTS.forEach(p => { CJ_MSG[p.line] = p.cj; });
+const CJ_P = {}; PRODUCTS.forEach(p => { CJ_P[p.line] = p; });
 $('cjxlsx').addEventListener('click', () => {
   const rows = view().filter(r => Number(r[H('수량')]) > 0);   // 같은 주문의 줄은 붙어서 나옵니다
   if(!rows.length){ showActErr('내려받을 주문이 없습니다. (‘발송 대기’ 탭에서 받는 것을 권장합니다)'); return; }
@@ -384,7 +384,10 @@ $('cjxlsx').addEventListener('click', () => {
   const data = [CJ_HEAD].concat(rows.map(r => [
     '', '', '',
     r[H('받는분 이름')], fmtPhone(r[H('받는분 전화번호')]), r[H('주소')],
-    CJ_MSG[String(r[H('메시지1')])] || r[H('메시지1')], '', Number(r[H('수량')]), '',
+    (CJ_P[String(r[H('메시지1')])] || {}).cj || r[H('메시지1')],
+    ((CJ_P[String(r[H('메시지1')])] || {}).freight || 0) * Number(r[H('수량')]),      // 기본운임 = 박스당 운임 × 박스수량
+    Number(r[H('수량')]),
+    (CJ_P[String(r[H('메시지1')])] || {}).cjName || '',                                   // 품목명
   ]));
   const d = new Date(), p = (n) => String(n).padStart(2,'0');
   const fname = `CJ송장_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
