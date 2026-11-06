@@ -134,6 +134,14 @@ const TABS = [
 const OFF = /^(x|n|no|0|미확인|미|취소|대기|아니오|안함)$/i;
 const isOn = (v) => { const s = String(v == null ? '' : v).trim(); return s !== '' && !OFF.test(s); };
 const H = (name) => HEADERS.indexOf(name);
+// 표·엑셀에 보여줄 열 순서 [시트 열 이름, 화면에 표시할 이름]
+const VIEW = [
+  ['받는분 이름'], ['받는분 전화번호'], ['우편번호'], ['주소'], ['상세주소'], ['요청사항'],
+  ['특품5kg 수량'], ['상품10kg 수량'], ['보통10kg 수량'],
+  ['이름', '주문자 이름'], ['전화번호', '주문자 전화번호'],
+  ['결제금액(원)'], ['입금자명'], ['입금확인'], ['출고'], ['송장번호'],
+];
+const viewCols = () => VIEW.map(v => ({ idx: H(v[0]), label: v[1] || v[0] })).filter(c => c.idx >= 0);
 
 function fmtPhone(p){
   const d = String(p || '').replace(/\D/g,'');
@@ -249,13 +257,15 @@ function render(){
   $('bulkShip').hidden = !(TAB === 'ready' && rows.length > 0);
   $('bulkShip').textContent = `표시된 ${rows.length}건 모두 출고 처리`;
 
-  const pi = H('전화번호'), pr = H('받는분 전화번호'), mi = H('결제금액(원)'), ni = H('주문번호'), ai = H('입금확인'), si = H('출고');
-  $('tbl').innerHTML = '<thead><tr>' + HEADERS.map(h => `<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>' +
+  const cols = viewCols(), phoneIdx = [H('전화번호'), H('받는분 전화번호')];
+  const mi = H('결제금액(원)'), ni = H('주문번호'), ai = H('입금확인'), si = H('출고');
+  $('tbl').innerHTML = '<thead><tr>' + cols.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr></thead><tbody>' +
     rows.map(r => {
       const paid = isOn(r[ai]), shipped = isOn(r[si]), no = esc(r[ni]);
-      const cells = r.map((c, i) => {
+      const cells = cols.map(({ idx: i }) => {
+        const c = r[i];
         let t = esc(c);
-        if(i === pi || i === pr) t = esc(fmtPhone(c));
+        if(phoneIdx.indexOf(i) >= 0) t = esc(fmtPhone(c));
         else if(i === mi) t = esc(won(c));
         else if(i === ai) t = `<label style="cursor:pointer"><input type="checkbox" class="chk" data-no="${no}" data-field="paid" ${paid ? 'checked' : ''}><span class="ts">${paid ? esc(c) : '입금 대기'}</span></label>`;
         else if(i === si) t = `<label style="cursor:pointer"><input type="checkbox" class="chk s" data-no="${no}" data-field="shipped" ${shipped ? 'checked' : ''}><span class="ts">${shipped ? esc(c) : ''}</span></label>`;
@@ -301,8 +311,8 @@ $('bulkShip').addEventListener('click', async () => {
 $('xlsx').addEventListener('click', () => {
   const shown = view();
   const rows = (TAB === 'ready' || TAB === 'unpaid') ? shown : shown.slice().reverse();   // 배송·독촉 순서 유지, 그 외는 접수 순
-  const pi = H('전화번호');
-  const data = [HEADERS].concat(rows.map(r => r.map((c, i) => (i === pi || i === H('받는분 전화번호')) ? fmtPhone(c) : c)));
+  const cols = viewCols(), phoneIdx = [H('전화번호'), H('받는분 전화번호')];
+  const data = [cols.map(c => c.label)].concat(rows.map(r => cols.map(({ idx: i }) => phoneIdx.indexOf(i) >= 0 ? fmtPhone(r[i]) : r[i])));
   const d = new Date(), p = (n) => String(n).padStart(2,'0');
   const stamp = `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   const tabName = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '').replace(/ /g, '');
@@ -319,7 +329,7 @@ $('xlsx').addEventListener('click', () => {
 
   if(window.XLSX){
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = HEADERS.map(h => ({ wch: /주소/.test(h) ? 38 : /요청|상세/.test(h) ? 24 : /시각|입금확인|출고/.test(h) ? 19 : 13 }));
+    ws['!cols'] = cols.map(({ label: h }) => ({ wch: /주소/.test(h) ? 38 : /요청|상세/.test(h) ? 24 : /시각|입금확인|출고/.test(h) ? 19 : 13 }));
     const ws2 = XLSX.utils.aoa_to_sheet(summary); ws2['!cols'] = [{wch:16},{wch:12},{wch:10},{wch:22}];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '주문'); XLSX.utils.book_append_sheet(wb, ws2, '집계');
     XLSX.writeFile(wb, fname + '.xlsx');
