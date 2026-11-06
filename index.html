@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>주문 관리</title>
+<style>
+  :root{--bg:#f6f1e7;--card:#fff;--line:#e6dac4;--ink:#33271b;--muted:#7a6650;--orange:#e5701a;--red:#b3261e;--ok:#2e7d32}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.5}
+  .wrap{max-width:1280px;margin:0 auto;padding:18px 14px 60px}
+  h1{font-size:21px;margin:6px 0 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .in{border:1.5px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;font-size:15px;background:#fff}
+  .btn{border:0;border-radius:10px;background:var(--orange);color:#fff;font-weight:800;min-height:44px;padding:0 18px;font-size:15px;cursor:pointer}
+  .btn.ghost{background:#fff;color:#c85a0b;border:1.5px solid var(--orange)}
+  .btn.dark{background:#33271b}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+  .bar .grow{flex:1;min-width:160px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+  .stat small{color:var(--muted);display:block;font-size:12.5px}
+  .stat b{font-size:20px}
+  .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff;max-height:66vh}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;white-space:nowrap}
+  th,td{padding:8px 10px;border-bottom:1px solid #f0e8d8;text-align:left}
+  th{position:sticky;top:0;background:#fde7c8;z-index:1}
+  td.num{text-align:right}
+  tr:hover td{background:#fffaf0}
+  .msg{margin:10px 0;font-size:14px;color:var(--muted)}
+  .msg.err{color:#8c1d18;background:#fdecea;border:1px solid #f3b8b3;border-radius:10px;padding:10px 12px}
+  #login{max-width:420px;margin:12vh auto}
+  .stockgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0}
+  .stockgrid label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600}
+  .stockgrid .in{width:100%}
+  .ok{color:var(--ok);font-weight:700}
+
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:0 14px;min-height:42px;font-size:14.5px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .seg button.on{background:var(--orange);border-color:var(--orange);color:#fff}
+  .seg button .n{opacity:.8;font-weight:600;margin-left:4px}
+  .seg.chips button{min-height:36px;font-size:13.5px}
+  .seg.chips button.on{background:#33271b;border-color:#33271b}
+  .lbl{font-size:12.5px;color:var(--muted);margin:10px 0 4px;font-weight:700}
+  .tag{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:800}
+  .tag.paid{background:#e8f5e9;color:var(--ok)} .tag.wait{background:#fff0d6;color:#a35a00}
+  .tag.ship{background:#e3eefc;color:#1c5db0}
+  .act{border:1.5px solid var(--line);background:#fff;border-radius:8px;min-height:32px;padding:0 10px;font-size:12.5px;font-weight:800;cursor:pointer;margin-right:4px}
+  .act.go{border-color:var(--orange);color:#c85a0b}
+  .act.undo{color:var(--muted)}
+  .act[disabled]{opacity:.5;cursor:wait}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="login" class="card">
+    <h1>주문 관리</h1>
+    <p class="msg">관리자 비밀번호를 입력하세요.</p>
+    <form id="loginForm" style="display:flex;gap:8px">
+      <input class="in" id="pw" type="password" autocomplete="current-password" placeholder="비밀번호" style="flex:1">
+      <button class="btn" type="submit" id="loginBtn">확인</button>
+    </form>
+    <div class="msg err" id="loginErr" hidden></div>
+  </div>
+
+  <div id="app" hidden>
+    <h1>주문 관리</h1>
+
+    <div class="card" id="stockCard" style="margin-bottom:14px">
+      <b>재고 관리 (남은 박스 수)</b>
+      <p class="msg" style="margin:4px 0 0">값을 고치고 ‘재고 저장’을 누르세요. 비워 두면 무제한입니다. 주문이 접수되면 자동으로 차감되고, 0이 되면 고객 화면에 ‘품절’로 표시됩니다.</p>
+      <div class="stockgrid">
+        <div><label for="st-special">특품 5kg</label><input class="in" id="st-special" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
+        <div><label for="st-grade">상품 10kg</label><input class="in" id="st-grade" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
+        <div><label for="st-normal">보통 10kg</label><input class="in" id="st-normal" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
+      </div>
+      <button class="btn" id="saveStock" type="button">재고 저장</button>
+      <span class="msg" id="stockMsg" style="margin-left:8px"></span>
+      <p class="msg" style="margin:8px 0 0">※ 입금되지 않아 주문을 취소한 경우, 해당 수량을 직접 더해서 저장해 주세요.</p>
+    </div>
+
+    <div class="lbl">진행 상태</div>
+    <div class="seg" id="tabs"></div>
+    <div class="lbl">상품별 보기</div>
+    <div class="seg chips" id="prods"></div>
+
+    <div class="stats" id="stats"></div>
+    <div class="bar">
+      <input class="in grow" id="q" type="search" placeholder="이름·전화·주소·주문번호·입금자명 검색">
+      <label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="onlyToday"> 오늘 접수만</label>
+      <button class="btn ghost" id="reload" type="button">새로고침</button>
+      <button class="btn dark" id="bulkShip" type="button" hidden>표시된 주문 모두 출고 처리</button>
+      <button class="btn" id="xlsx" type="button">엑셀 다운로드</button>
+    </div>
+    <div class="msg" id="count"></div>
+    <div class="msg err" id="actErr" hidden></div>
+    <div class="tablewrap"><table id="tbl"></table></div>
+    <p class="msg">
+      · <b>입금확인</b> 버튼을 누르면 해당 주문이 ‘발송 대기’로 넘어가고, <b>출고</b> 버튼을 누르면 ‘발송 완료’로 넘어갑니다. 실수했다면 ‘취소’ 버튼으로 되돌립니다.<br>
+      · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
+      · ‘발송 대기’는 <b>입금 확인한 순서</b>대로 보여줍니다. 입금 순서대로 배송하는 기준으로 쓰세요.
+    </p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Apps Script 배포 후 받은 웹 앱 URL (index.html 의 API_URL 과 같은 값)
+const API_URL = 'https://script.google.com/macros/s/AKfycbxxqVAMqSJ-gJ_WL8ZMAB6yLAPBHeNqgKxxuQzOLkx0BEqsGU00s62YBWXKNyek9b96bw/exec';
+
+const $ = (id) => document.getElementById(id);
+const won = (n) => Number(n || 0).toLocaleString('ko-KR');
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let KEY = '', HEADERS = [], ROWS = [];
+let TAB = 'all', PROD = 'all';
+
+const PRODUCTS = [
+  { key:'special', label:'특품 5kg',  col:'특품5kg 수량' },
+  { key:'grade',   label:'상품 10kg', col:'상품10kg 수량' },
+  { key:'normal',  label:'보통 10kg', col:'보통10kg 수량' },
+];
+const TABS = [
+  { key:'all',    label:'전체' },
+  { key:'unpaid', label:'입금 대기' },
+  { key:'ready',  label:'발송 대기 (입금확인·미발송)' },
+  { key:'done',   label:'발송 완료' },
+];
+const OFF = /^(x|n|no|0|미확인|미|취소|대기|아니오|안함)$/i;
+const isOn = (v) => { const s = String(v == null ? '' : v).trim(); return s !== '' && !OFF.test(s); };
+const H = (name) => HEADERS.indexOf(name);
+
+function fmtPhone(p){
+  const d = String(p || '').replace(/\D/g,'');
+  if(d.length === 11) return d.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3');
+  if(d.length === 10) return d.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3');
+  return p;
+}
+async function call(body){
+  if(!API_URL) throw new Error('admin.html 의 API_URL 이 비어 있습니다. Apps Script 웹 앱 URL 을 넣어 주세요.');
+  const r = await fetch(API_URL, { method:'POST', body: JSON.stringify(Object.assign({ key: KEY }, body)) });
+  const j = await r.json();
+  if(!j.ok) throw new Error(j.error || '요청에 실패했습니다.');
+  return j;
+}
+async function fetchList(){
+  const j = await call({ action:'list' });
+  HEADERS = j.headers; ROWS = j.rows; fillStock(j.stock);
+}
+
+/* ---------- 재고 ---------- */
+const STOCK_KEYS = ['special','grade','normal'];
+function fillStock(stock){
+  STOCK_KEYS.forEach(k => { $('st-' + k).value = (stock && typeof stock[k] === 'number') ? stock[k] : ''; });
+}
+$('saveStock').addEventListener('click', async () => {
+  const stock = {}; STOCK_KEYS.forEach(k => { stock[k] = $('st-' + k).value.trim(); });
+  $('saveStock').disabled = true; $('stockMsg').className = 'msg'; $('stockMsg').textContent = '저장 중…';
+  try{
+    const j = await call({ action:'setStock', stock });
+    fillStock(j.stock); $('stockMsg').className = 'msg ok'; $('stockMsg').textContent = '저장되었습니다 ✓';
+  }catch(err){
+    $('stockMsg').className = 'msg err'; $('stockMsg').textContent = err.message;
+  }
+  $('saveStock').disabled = false;
+});
+
+/* ---------- 로그인 / 새로고침 ---------- */
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  KEY = $('pw').value; $('loginBtn').disabled = true; $('loginErr').hidden = true;
+  try{
+    await fetchList();
+    $('login').hidden = true; $('app').hidden = false; render();
+  }catch(err){
+    $('loginErr').textContent = err.message; $('loginErr').hidden = false; KEY = '';
+  }finally{ $('loginBtn').disabled = false; }
+});
+$('reload').addEventListener('click', async () => {
+  $('reload').disabled = true;
+  try{ await fetchList(); render(); }catch(err){ showActErr(err.message); }
+  $('reload').disabled = false;
+});
+$('q').addEventListener('input', render);
+$('onlyToday').addEventListener('change', render);
+function showActErr(msg){ const b = $('actErr'); b.textContent = msg || ''; b.hidden = !msg; }
+
+/* ---------- 조회: 검색·오늘·상품 → 상태 탭 ---------- */
+function todayStr(){
+  const d = new Date(); const p = (n) => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+const st = (r) => {                       // 한 주문의 진행 상태
+  const paid = isOn(r[H('입금확인')]), shipped = isOn(r[H('출고')]);
+  return shipped ? 'done' : paid ? 'ready' : 'unpaid';
+};
+const minuteKey = (v, fallback) => {      // 정렬용 'MM-dd HH:mm'
+  const m = String(v || '').match(/(\d{2}-\d{2} \d{2}:\d{2})/);
+  return m ? m[1] : String(fallback || '').slice(5, 16);
+};
+function baseRows(){                      // 상태 탭을 적용하기 전(탭 숫자 계산용)
+  const q = $('q').value.trim().toLowerCase(), today = todayStr(), only = $('onlyToday').checked;
+  const pc = PROD === 'all' ? -1 : H(PRODUCTS.find(p => p.key === PROD).col);
+  return ROWS.filter(r => {
+    if(only && !String(r[H('접수시각')]).startsWith(today)) return false;
+    if(pc >= 0 && !(Number(r[pc]) > 0)) return false;
+    if(!q) return true;
+    return r.some(c => String(c).toLowerCase().includes(q));
+  });
+}
+function view(){
+  let rows = baseRows();
+  if(TAB !== 'all') rows = rows.filter(r => st(r) === TAB);
+  rows = rows.slice();                    // ROWS 는 접수 순(오래된 것이 앞)
+  if(TAB === 'ready') rows.sort((a, b) => {
+    const ka = minuteKey(a[H('입금확인')], a[H('접수시각')]), kb = minuteKey(b[H('입금확인')], b[H('접수시각')]);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;   // 입금 확인한 순서(= 배송 순서)
+  });
+  else if(TAB !== 'unpaid') rows.reverse();  // 전체·발송완료: 최신 위
+  return rows;                               // 입금 대기: 오래된 것 위(독촉 대상)
+}
+
+/* ---------- 화면 ---------- */
+function renderControls(){
+  const base = baseRows(), cnt = { all: base.length, unpaid:0, ready:0, done:0 };
+  base.forEach(r => cnt[st(r)]++);
+  $('tabs').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.key}" class="${TAB === t.key ? 'on' : ''}">${t.label}<span class="n">${cnt[t.key]}</span></button>`).join('');
+  $('prods').innerHTML = [{ key:'all', label:'전체 상품' }].concat(PRODUCTS).map(p => `<button type="button" data-prod="${p.key}" class="${PROD === p.key ? 'on' : ''}">${p.label}</button>`).join('');
+}
+function render(){
+  renderControls();
+  const rows = view();
+  const sum = (n) => rows.reduce((s, r) => s + Number(r[H(n)] || 0), 0);
+  $('stats').innerHTML = [
+    ['주문 건수', rows.length + '건'],
+    ['특품 5kg', sum('특품5kg 수량') + '박스'],
+    ['상품 10kg', sum('상품10kg 수량') + '박스'],
+    ['보통 10kg', sum('보통10kg 수량') + '박스'],
+    ['결제 금액 합계', won(sum('결제금액(원)')) + '원'],
+  ].map(([k,v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
+  const label = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '');
+  const pl = PROD === 'all' ? '' : ' · ' + PRODUCTS.find(p => p.key === PROD).label;
+  $('count').textContent = `${label}${pl} — 전체 ${ROWS.length}건 중 ${rows.length}건 표시`;
+  $('bulkShip').hidden = !(TAB === 'ready' && rows.length > 0);
+  $('bulkShip').textContent = `표시된 ${rows.length}건 모두 출고 처리`;
+
+  const pi = H('전화번호'), mi = H('결제금액(원)'), ni = H('주문번호'), ai = H('입금확인'), si = H('출고');
+  $('tbl').innerHTML = '<thead><tr>' + HEADERS.map(h => `<th>${esc(h)}</th>`).join('') + '<th>처리</th></tr></thead><tbody>' +
+    rows.map(r => {
+      const paid = isOn(r[ai]), shipped = isOn(r[si]), no = esc(r[ni]);
+      const cells = r.map((c, i) => {
+        let t = esc(c);
+        if(i === pi) t = esc(fmtPhone(c));
+        else if(i === mi) t = esc(won(c));
+        else if(i === ai && paid) t = `<span class="tag paid">${esc(c)}</span>`;
+        else if(i === ai) t = '<span class="tag wait">입금 대기</span>';
+        else if(i === si && shipped) t = `<span class="tag ship">${esc(c)}</span>`;
+        return `<td class="${i === mi ? 'num' : ''}">${t}</td>`;
+      }).join('');
+      const acts = (paid
+          ? `<button class="act undo" data-no="${no}" data-field="paid" data-on="0">입금취소</button>`
+          : `<button class="act go" data-no="${no}" data-field="paid" data-on="1">입금확인</button>`) +
+        (shipped
+          ? `<button class="act undo" data-no="${no}" data-field="shipped" data-on="0">출고취소</button>`
+          : `<button class="act go" data-no="${no}" data-field="shipped" data-on="1">출고</button>`);
+      return `<tr>${cells}<td>${acts}</td></tr>`;
+    }).join('') + '</tbody>';
+}
+
+/* ---------- 탭·상품 선택 ---------- */
+$('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if(b){ TAB = b.dataset.tab; render(); } });
+$('prods').addEventListener('click', (e) => { const b = e.target.closest('[data-prod]'); if(b){ PROD = b.dataset.prod; render(); } });
+
+/* ---------- 입금확인 / 출고 처리 ---------- */
+async function setStatus(nos, field, on){
+  showActErr('');
+  const j = await call({ action:'setStatus', orderNos: nos, field, value: on });
+  const col = H(field === 'paid' ? '입금확인' : '출고'), ni = H('주문번호');
+  ROWS.forEach(r => { if(j.updated.indexOf(String(r[ni])) >= 0) r[col] = j.value; });
+  if(j.missing && j.missing.length) showActErr('찾지 못한 주문: ' + j.missing.join(', ') + ' (새로고침 후 다시 확인하세요)');
+  render();
+}
+$('tbl').addEventListener('click', async (e) => {
+  const b = e.target.closest('button.act'); if(!b) return;
+  const no = b.dataset.no, field = b.dataset.field, on = b.dataset.on === '1';
+  if(on && field === 'shipped'){
+    const row = ROWS.find(r => String(r[H('주문번호')]) === no);
+    if(row && !isOn(row[H('입금확인')]) && !confirm('입금이 확인되지 않은 주문입니다. 그래도 출고 처리할까요?')) return;
+  }
+  b.disabled = true;
+  try{ await setStatus([no], field, on); }catch(err){ showActErr(err.message); b.disabled = false; }
+});
+$('bulkShip').addEventListener('click', async () => {
+  const rows = view(), ni = H('주문번호');
+  if(!rows.length) return;
+  if(!confirm(`발송 대기 ${rows.length}건을 모두 '출고' 처리합니다.\n택배 접수를 마치셨나요? (되돌리려면 건별로 ‘출고취소’를 눌러야 합니다)`)) return;
+  $('bulkShip').disabled = true;
+  try{ await setStatus(rows.map(r => String(r[ni])), 'shipped', true); }catch(err){ showActErr(err.message); }
+  $('bulkShip').disabled = false;
+});
+
+/* ---------- 엑셀 다운로드: 현재 조회 조건 그대로 ---------- */
+$('xlsx').addEventListener('click', () => {
+  const shown = view();
+  const rows = (TAB === 'ready' || TAB === 'unpaid') ? shown : shown.slice().reverse();   // 배송·독촉 순서 유지, 그 외는 접수 순
+  const pi = H('전화번호');
+  const data = [HEADERS].concat(rows.map(r => r.map((c, i) => i === pi ? fmtPhone(c) : c)));
+  const d = new Date(), p = (n) => String(n).padStart(2,'0');
+  const stamp = `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  const tabName = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '').replace(/ /g, '');
+  const prodName = PROD === 'all' ? '' : '_' + PRODUCTS.find(p => p.key === PROD).label.replace(/ /g, '');
+  const fname = `감주문_${tabName}${prodName}_${stamp}`;
+
+  // 집계 시트: 상품별 주문 건수·박스·금액
+  const price = { special:38000, grade:34000, normal:24000 };
+  const summary = [['상품', '주문 건수', '박스 수', '합계 박스 금액(참고)']].concat(PRODUCTS.map(pr => {
+    const c = H(pr.col), n = rows.filter(r => Number(r[c]) > 0).length, b = rows.reduce((s, r) => s + Number(r[c] || 0), 0);
+    return [pr.label, n, b, b * price[pr.key]];
+  }));
+  summary.push(['전체 주문', rows.length, '', rows.reduce((s, r) => s + Number(r[H('결제금액(원)')] || 0), 0)]);
+
+  if(window.XLSX){
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = HEADERS.map(h => ({ wch: /주소/.test(h) ? 38 : /요청|상세/.test(h) ? 24 : /시각|입금확인|출고/.test(h) ? 19 : 13 }));
+    const ws2 = XLSX.utils.aoa_to_sheet(summary); ws2['!cols'] = [{wch:16},{wch:12},{wch:10},{wch:22}];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '주문'); XLSX.utils.book_append_sheet(wb, ws2, '집계');
+    XLSX.writeFile(wb, fname + '.xlsx');
+  } else {
+    // 엑셀 라이브러리를 못 불러온 경우: 엑셀에서 열리는 CSV 로 대체
+    const csv = '﻿' + data.map(r => r.map(c => '"' + String(c == null ? '' : c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+    a.download = fname + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  }
+});
+</script>
+</body>
+</html>
