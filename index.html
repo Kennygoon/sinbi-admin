@@ -108,7 +108,7 @@
     <div class="msg" id="count"></div>
     <div class="msg err" id="actErr" hidden></div>
     <div class="tablewrap"><table id="tbl"></table></div>
-    <p class="msg" style="font-size:12px">화면 버전 2026-11-06-f · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
+    <p class="msg" style="font-size:12px">화면 버전 2026-11-06-g · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
     <p class="msg">
       · <b>입금확인</b> 칸을 체크하면 ‘발송 대기’로 넘어가고, <b>출고</b> 칸을 체크하면 ‘발송 완료’로 넘어갑니다. 실수했다면 체크를 해제하면 됩니다. 체크한 시각이 함께 기록됩니다.<br>
       · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
@@ -130,12 +130,14 @@ let KEY = '', HEADERS = [], ROWS = [];
 let TAB = 'all', PROD = 'all';
 
 const PRODUCTS = [
-  { key:'special', label:'특품 5kg',  line:'특품5kg',  cj:'특과', cjName:'단감(특품)', freight:4000, price:38000 },
-  { key:'grade',   label:'상품 10kg', line:'상품10kg', cj:'중과', cjName:'단감(중과)', freight:4500, price:34000 },
-  { key:'normal',  label:'보통 10kg', line:'보통10kg', cj:'소과', cjName:'단감(소과)', freight:4500, price:24000 },
+  { key:'special', label:'특품 5kg',  line:'특과',  cj:'특과', cjName:'단감(특품)', freight:4000, price:38000 },
+  { key:'grade',   label:'상품 10kg', line:'중과', cj:'중과', cjName:'단감(중과)', freight:4500, price:34000 },
+  { key:'normal',  label:'보통 10kg', line:'소과', cj:'소과', cjName:'단감(소과)', freight:4500, price:24000 },
 ];
 // 한 주문에 상품이 여러 가지면 상품마다 한 줄씩이고, 주문번호는 261105-0001 / 261105-0001-2 …
 const baseNo = (no) => { const m = String(no || '').trim().match(/^(\d{6}-\d{4})(?:-\d+)?$/); return m ? m[1] : String(no || '').trim(); };
+const LEGACY = { '특품5kg':'특과', '상품10kg':'중과', '보통10kg':'소과' };   // 예전 표기도 같은 상품으로 취급
+const lineOf = (r) => { const t = String(r[H('메시지1')] || '').trim(); return LEGACY[t] || t; };
 const isCont = (r) => /-\d+$/.test(String(r[H('주문번호')] || '').replace(/^\d{6}-\d{4}/, ''));
 const TABS = [
   { key:'all',    label:'발송 전 전체' },
@@ -242,7 +244,7 @@ function baseRows(){                      // 상태 탭을 적용하기 전(탭 
   if(q){ hit = new Set(); ROWS.forEach(r => { if(r.some(c => String(c).toLowerCase().includes(q))) hit.add(baseNo(r[H('주문번호')])); }); }
   return ROWS.filter(r => {
     if(only && !String(r[H('접수시각')]).startsWith(today)) return false;
-    if(pl && String(r[H('메시지1')]) !== pl) return false;
+    if(pl && lineOf(r) !== pl) return false;
     if(hit && !hit.has(baseNo(r[H('주문번호')]))) return false;
     return true;
   });
@@ -276,12 +278,12 @@ function render(){
   renderControls();
   const rows = view();
   const sum = (n) => rows.reduce((s, r) => s + Number(r[H(n)] || 0), 0);
-  const boxes = (line) => rows.reduce((s, r) => s + (String(r[H('메시지1')]) === line ? Number(r[H('수량')] || 0) : 0), 0);
+  const boxes = (line) => rows.reduce((s, r) => s + (lineOf(r) === line ? Number(r[H('수량')] || 0) : 0), 0);
   $('stats').innerHTML = [
     ['주문 건수', orderCount(rows) + '건 (' + rows.length + '줄)'],
-    ['특품 5kg', boxes('특품5kg') + '박스'],
-    ['상품 10kg', boxes('상품10kg') + '박스'],
-    ['보통 10kg', boxes('보통10kg') + '박스'],
+    ['특품 5kg', boxes('특과') + '박스'],
+    ['상품 10kg', boxes('중과') + '박스'],
+    ['보통 10kg', boxes('소과') + '박스'],
     ['결제 금액 합계', won(sum('결제금액(원)')) + '원'],
   ].map(([k,v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
   const label = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '');
@@ -384,10 +386,10 @@ $('cjxlsx').addEventListener('click', () => {
   const data = [CJ_HEAD].concat(rows.map(r => [
     '', '', '',
     r[H('받는분 이름')], fmtPhone(r[H('받는분 전화번호')]), r[H('주소')],
-    (CJ_P[String(r[H('메시지1')])] || {}).cj || r[H('메시지1')],
-    ((CJ_P[String(r[H('메시지1')])] || {}).freight || 0) * Number(r[H('수량')]),      // 기본운임 = 박스당 운임 × 박스수량
+    (CJ_P[lineOf(r)] || {}).cj || lineOf(r),
+    ((CJ_P[lineOf(r)] || {}).freight || 0) * Number(r[H('수량')]),      // 기본운임 = 박스당 운임 × 박스수량
     Number(r[H('수량')]),
-    (CJ_P[String(r[H('메시지1')])] || {}).cjName || '',                                   // 품목명
+    (CJ_P[lineOf(r)] || {}).cjName || '',                                   // 품목명
   ]));
   const d = new Date(), p = (n) => String(n).padStart(2,'0');
   const fname = `CJ송장_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
@@ -422,7 +424,7 @@ $('xlsx').addEventListener('click', () => {
 
   // 집계 시트: 상품별 주문 건수·박스·금액
   const summary = [['상품', '주문 건수', '박스 수', '합계 박스 금액(참고)']].concat(PRODUCTS.map(pr => {
-    const mine = rows.filter(r => String(r[H('메시지1')]) === pr.line), b = mine.reduce((s, r) => s + Number(r[H('수량')] || 0), 0);
+    const mine = rows.filter(r => lineOf(r) === pr.line), b = mine.reduce((s, r) => s + Number(r[H('수량')] || 0), 0);
     return [pr.label, orderCount(mine), b, b * pr.price];
   }));
   summary.push(['전체 주문', orderCount(rows), '', rows.reduce((s, r) => s + Number(r[H('결제금액(원)')] || 0), 0)]);
