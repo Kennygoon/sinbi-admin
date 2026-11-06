@@ -50,6 +50,9 @@
   .chk{width:22px;height:22px;accent-color:#e5701a;cursor:pointer;vertical-align:middle;margin-right:6px}
   .chk.s{accent-color:#1c5db0}
   .ts{font-size:12px;color:var(--muted)}
+  .trk{width:150px;border:1.5px solid var(--line);border-radius:8px;padding:0 8px;min-height:34px;font-size:13.5px}
+  .trk.saved{border-color:var(--ok);background:#f1f8f1}
+  .trk.err{border-color:var(--red);background:#fdecea}
   .act{border:1.5px solid var(--line);background:#fff;border-radius:8px;min-height:32px;padding:0 10px;font-size:12.5px;font-weight:800;cursor:pointer;margin-right:4px}
   .act.go{border-color:var(--orange);color:#c85a0b}
   .act.undo{color:var(--muted)}
@@ -94,6 +97,7 @@
     <div class="bar">
       <input class="in grow" id="q" type="search" placeholder="이름·전화·주소·주문번호·입금자명 검색">
       <label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="onlyToday"> 오늘 접수만</label>
+      <label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="showDone"> 발송 완료 건도 보기</label>
       <button class="btn ghost" id="reload" type="button">새로고침</button>
       <button class="btn dark" id="bulkShip" type="button" hidden>표시된 주문 모두 출고 처리</button>
       <button class="btn" id="xlsx" type="button">엑셀 다운로드</button>
@@ -101,6 +105,7 @@
     <div class="msg" id="count"></div>
     <div class="msg err" id="actErr" hidden></div>
     <div class="tablewrap"><table id="tbl"></table></div>
+    <p class="msg" style="font-size:12px">화면 버전 2026-11-06-c · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
     <p class="msg">
       · <b>입금확인</b> 칸을 체크하면 ‘발송 대기’로 넘어가고, <b>출고</b> 칸을 체크하면 ‘발송 완료’로 넘어갑니다. 실수했다면 체크를 해제하면 됩니다. 체크한 시각이 함께 기록됩니다.<br>
       · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
@@ -126,7 +131,7 @@ const PRODUCTS = [
   { key:'normal',  label:'보통 10kg', col:'보통10kg 수량' },
 ];
 const TABS = [
-  { key:'all',    label:'전체' },
+  { key:'all',    label:'발송 전 전체' },
   { key:'unpaid', label:'입금 대기' },
   { key:'ready',  label:'발송 대기 (입금확인·미발송)' },
   { key:'done',   label:'발송 완료' },
@@ -136,7 +141,7 @@ const isOn = (v) => { const s = String(v == null ? '' : v).trim(); return s !== 
 const H = (name) => HEADERS.indexOf(name);
 // 표·엑셀에 보여줄 열 순서 [시트 열 이름, 화면에 표시할 이름]
 const VIEW = [
-  ['받는분 이름'], ['받는분 전화번호'], ['우편번호'], ['주소'], ['상세주소'], ['요청사항'],
+  ['접수시각'], ['받는분 이름'], ['받는분 전화번호'], ['우편번호'], ['주소'], ['상세주소'], ['요청사항'],
   ['특품5kg 수량'], ['상품10kg 수량'], ['보통10kg 수량'],
   ['이름', '주문자 이름'], ['전화번호', '주문자 전화번호'],
   ['결제금액(원)'], ['입금자명'], ['입금확인'], ['출고'], ['송장번호'],
@@ -207,6 +212,7 @@ $('reload').addEventListener('click', async () => {
 });
 $('q').addEventListener('input', render);
 $('onlyToday').addEventListener('change', render);
+$('showDone').addEventListener('change', render);
 function showActErr(msg){ const b = $('actErr'); b.textContent = msg || ''; b.hidden = !msg; }
 
 /* ---------- 조회: 검색·오늘·상품 → 상태 탭 ---------- */
@@ -232,9 +238,12 @@ function baseRows(){                      // 상태 탭을 적용하기 전(탭 
     return r.some(c => String(c).toLowerCase().includes(q));
   });
 }
+// ‘전체’ 탭은 발송 완료 건을 숨깁니다. ‘발송 완료 건도 보기’를 체크하거나 검색어가 있으면 포함합니다. (‘발송 완료’ 탭은 항상 보여줌)
+const hideDone = (rows) => ($('showDone').checked || $('q').value.trim()) ? rows : rows.filter(r => st(r) !== 'done');
 function view(){
   let rows = baseRows();
   if(TAB !== 'all') rows = rows.filter(r => st(r) === TAB);
+  else rows = hideDone(rows);
   rows = rows.slice();                    // ROWS 는 접수 순(오래된 것이 앞)
   if(TAB === 'ready') rows.sort((a, b) => {
     const ka = minuteKey(a[H('입금확인')], a[H('접수시각')]), kb = minuteKey(b[H('입금확인')], b[H('접수시각')]);
@@ -246,9 +255,10 @@ function view(){
 
 /* ---------- 화면 ---------- */
 function renderControls(){
-  const base = baseRows(), cnt = { all: base.length, unpaid:0, ready:0, done:0 };
+  const base = baseRows(), cnt = { all: hideDone(base).length, unpaid:0, ready:0, done:0 };
   base.forEach(r => cnt[st(r)]++);
-  $('tabs').innerHTML = TABS.map(t => `<button type="button" data-tab="${t.key}" class="${TAB === t.key ? 'on' : ''}">${t.label}<span class="n">${cnt[t.key]}</span></button>`).join('');
+  const incl = $('showDone').checked || $('q').value.trim();
+  $('tabs').innerHTML = TABS.map(t => { const lb = (t.key === 'all' && incl) ? '전체 (발송 완료 포함)' : t.label; return `<button type="button" data-tab="${t.key}" class="${TAB === t.key ? 'on' : ''}">${lb}<span class="n">${cnt[t.key]}</span></button>`; }).join('');
   $('prods').innerHTML = [{ key:'all', label:'전체 상품' }].concat(PRODUCTS).map(p => `<button type="button" data-prod="${p.key}" class="${PROD === p.key ? 'on' : ''}">${p.label}</button>`).join('');
 }
 function render(){
@@ -264,7 +274,7 @@ function render(){
   ].map(([k,v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
   const label = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '');
   const pl = PROD === 'all' ? '' : ' · ' + PRODUCTS.find(p => p.key === PROD).label;
-  $('count').textContent = `${label}${pl} — 전체 ${ROWS.length}건 중 ${rows.length}건 표시`;
+  $('count').textContent = `${label}${pl} — 전체 ${ROWS.length}건 중 ${rows.length}건 표시` + ((TAB === 'all' && !$('showDone').checked && !$('q').value.trim() && ROWS.some(r => st(r) === 'done')) ? ' (발송 완료 건 제외)' : '');
   $('bulkShip').hidden = !(TAB === 'ready' && rows.length > 0);
   $('bulkShip').textContent = `표시된 ${rows.length}건 모두 출고 처리`;
 
@@ -283,6 +293,7 @@ function render(){
           t = esc(c) + `<br><span class="tag wait" title="같은 주문자의 묶음 입금 건">합산 ${g.length}건 · ${won(gs)}원</span>`;
         }
         else if(i === ai) t = `<label style="cursor:pointer"><input type="checkbox" class="chk" data-no="${no}" data-field="paid" ${paid ? 'checked' : ''}><span class="ts">${paid ? esc(c) : '입금 대기'}</span></label>`;
+        else if(i === H('송장번호')) t = `<input class="trk" data-no="${no}" data-old="${esc(c)}" value="${esc(c)}" placeholder="송장번호" inputmode="numeric" maxlength="40">`;
         else if(i === si) t = `<label style="cursor:pointer"><input type="checkbox" class="chk s" data-no="${no}" data-field="shipped" ${shipped ? 'checked' : ''}><span class="ts">${shipped ? esc(c) : ''}</span></label>`;
         return `<td class="${i === mi ? 'num' : ''}">${t}</td>`;
       }).join('');
@@ -322,6 +333,23 @@ $('tbl').addEventListener('change', async (e) => {
   b.disabled = true;
   try{ await setStatus(targets, field, on); }catch(err){ showActErr(err.message); b.checked = !on; b.disabled = false; }
 });
+/* ---------- 송장번호 입력: 칸을 벗어나거나 Enter 를 누르면 저장 ---------- */
+$('tbl').addEventListener('change', async (e) => {
+  const inp = e.target.closest('input.trk'); if(!inp) return;
+  const no = inp.dataset.no, val = inp.value.replace(/[^0-9A-Za-z\-]/g, '').trim();
+  inp.value = val;
+  if(val === (inp.dataset.old || '')) return;
+  inp.disabled = true; showActErr('');
+  try{
+    const j = await call({ action:'setTracking', orderNo: no, tracking: val });
+    if(j.missing && j.missing.length) throw new Error('주문을 찾지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    const row = ROWS.find(r => String(r[H('주문번호')]) === no); if(row) row[H('송장번호')] = j.saved[no];
+    inp.dataset.old = j.saved[no]; inp.value = j.saved[no];
+    inp.classList.remove('err'); inp.classList.add('saved'); setTimeout(() => inp.classList.remove('saved'), 1500);
+  }catch(err){ inp.classList.add('err'); showActErr('송장번호 저장 실패: ' + err.message); }
+  inp.disabled = false;
+});
+$('tbl').addEventListener('keydown', (e) => { if(e.key === 'Enter' && e.target.classList.contains('trk')){ e.preventDefault(); e.target.blur(); } });
 $('bulkShip').addEventListener('click', async () => {
   const rows = view(), ni = H('주문번호');
   if(!rows.length) return;
