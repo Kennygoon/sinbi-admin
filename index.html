@@ -47,6 +47,9 @@
   .tag{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:800}
   .tag.paid{background:#e8f5e9;color:var(--ok)} .tag.wait{background:#fff0d6;color:#a35a00}
   .tag.ship{background:#e3eefc;color:#1c5db0}
+  .chk{width:22px;height:22px;accent-color:#e5701a;cursor:pointer;vertical-align:middle;margin-right:6px}
+  .chk.s{accent-color:#1c5db0}
+  .ts{font-size:12px;color:var(--muted)}
   .act{border:1.5px solid var(--line);background:#fff;border-radius:8px;min-height:32px;padding:0 10px;font-size:12.5px;font-weight:800;cursor:pointer;margin-right:4px}
   .act.go{border-color:var(--orange);color:#c85a0b}
   .act.undo{color:var(--muted)}
@@ -99,7 +102,7 @@
     <div class="msg err" id="actErr" hidden></div>
     <div class="tablewrap"><table id="tbl"></table></div>
     <p class="msg">
-      · <b>입금확인</b> 버튼을 누르면 해당 주문이 ‘발송 대기’로 넘어가고, <b>출고</b> 버튼을 누르면 ‘발송 완료’로 넘어갑니다. 실수했다면 ‘취소’ 버튼으로 되돌립니다.<br>
+      · <b>입금확인</b> 칸을 체크하면 ‘발송 대기’로 넘어가고, <b>출고</b> 칸을 체크하면 ‘발송 완료’로 넘어갑니다. 실수했다면 체크를 해제하면 됩니다. 체크한 시각이 함께 기록됩니다.<br>
       · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
       · ‘발송 대기’는 <b>입금 확인한 순서</b>대로 보여줍니다. 입금 순서대로 배송하는 기준으로 쓰세요.
     </p>
@@ -247,25 +250,18 @@ function render(){
   $('bulkShip').textContent = `표시된 ${rows.length}건 모두 출고 처리`;
 
   const pi = H('전화번호'), mi = H('결제금액(원)'), ni = H('주문번호'), ai = H('입금확인'), si = H('출고');
-  $('tbl').innerHTML = '<thead><tr>' + HEADERS.map(h => `<th>${esc(h)}</th>`).join('') + '<th>처리</th></tr></thead><tbody>' +
+  $('tbl').innerHTML = '<thead><tr>' + HEADERS.map(h => `<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>' +
     rows.map(r => {
       const paid = isOn(r[ai]), shipped = isOn(r[si]), no = esc(r[ni]);
       const cells = r.map((c, i) => {
         let t = esc(c);
         if(i === pi) t = esc(fmtPhone(c));
         else if(i === mi) t = esc(won(c));
-        else if(i === ai && paid) t = `<span class="tag paid">${esc(c)}</span>`;
-        else if(i === ai) t = '<span class="tag wait">입금 대기</span>';
-        else if(i === si && shipped) t = `<span class="tag ship">${esc(c)}</span>`;
+        else if(i === ai) t = `<label style="cursor:pointer"><input type="checkbox" class="chk" data-no="${no}" data-field="paid" ${paid ? 'checked' : ''}><span class="ts">${paid ? esc(c) : '입금 대기'}</span></label>`;
+        else if(i === si) t = `<label style="cursor:pointer"><input type="checkbox" class="chk s" data-no="${no}" data-field="shipped" ${shipped ? 'checked' : ''}><span class="ts">${shipped ? esc(c) : ''}</span></label>`;
         return `<td class="${i === mi ? 'num' : ''}">${t}</td>`;
       }).join('');
-      const acts = (paid
-          ? `<button class="act undo" data-no="${no}" data-field="paid" data-on="0">입금취소</button>`
-          : `<button class="act go" data-no="${no}" data-field="paid" data-on="1">입금확인</button>`) +
-        (shipped
-          ? `<button class="act undo" data-no="${no}" data-field="shipped" data-on="0">출고취소</button>`
-          : `<button class="act go" data-no="${no}" data-field="shipped" data-on="1">출고</button>`);
-      return `<tr>${cells}<td>${acts}</td></tr>`;
+      return `<tr>${cells}</tr>`;
     }).join('') + '</tbody>';
 }
 
@@ -282,20 +278,20 @@ async function setStatus(nos, field, on){
   if(j.missing && j.missing.length) showActErr('찾지 못한 주문: ' + j.missing.join(', ') + ' (새로고침 후 다시 확인하세요)');
   render();
 }
-$('tbl').addEventListener('click', async (e) => {
-  const b = e.target.closest('button.act'); if(!b) return;
-  const no = b.dataset.no, field = b.dataset.field, on = b.dataset.on === '1';
+$('tbl').addEventListener('change', async (e) => {
+  const b = e.target.closest('input.chk'); if(!b) return;
+  const no = b.dataset.no, field = b.dataset.field, on = b.checked;
   if(on && field === 'shipped'){
     const row = ROWS.find(r => String(r[H('주문번호')]) === no);
-    if(row && !isOn(row[H('입금확인')]) && !confirm('입금이 확인되지 않은 주문입니다. 그래도 출고 처리할까요?')) return;
+    if(row && !isOn(row[H('입금확인')]) && !confirm('입금이 확인되지 않은 주문입니다. 그래도 출고 처리할까요?')){ b.checked = false; return; }
   }
   b.disabled = true;
-  try{ await setStatus([no], field, on); }catch(err){ showActErr(err.message); b.disabled = false; }
+  try{ await setStatus([no], field, on); }catch(err){ showActErr(err.message); b.checked = !on; b.disabled = false; }
 });
 $('bulkShip').addEventListener('click', async () => {
   const rows = view(), ni = H('주문번호');
   if(!rows.length) return;
-  if(!confirm(`발송 대기 ${rows.length}건을 모두 '출고' 처리합니다.\n택배 접수를 마치셨나요? (되돌리려면 건별로 ‘출고취소’를 눌러야 합니다)`)) return;
+  if(!confirm(`발송 대기 ${rows.length}건을 모두 '출고' 처리합니다.\n택배 접수를 마치셨나요? (되돌리려면 건별로 체크를 해제해야 합니다)`)) return;
   $('bulkShip').disabled = true;
   try{ await setStatus(rows.map(r => String(r[ni])), 'shipped', true); }catch(err){ showActErr(err.message); }
   $('bulkShip').disabled = false;
