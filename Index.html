@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>주문 관리</title>
+<style>
+  :root{--bg:#f6f1e7;--card:#fff;--line:#e6dac4;--ink:#33271b;--muted:#7a6650;--orange:#e5701a;--red:#b3261e;--ok:#2e7d32}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;line-height:1.5}
+  .wrap{max-width:1280px;margin:0 auto;padding:18px 14px 60px}
+  h1{font-size:21px;margin:6px 0 14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .in{border:1.5px solid var(--line);border-radius:10px;padding:0 12px;min-height:44px;font-size:15px;background:#fff}
+  .btn{border:0;border-radius:10px;background:var(--orange);color:#fff;font-weight:800;min-height:44px;padding:0 18px;font-size:15px;cursor:pointer}
+  .btn.ghost{background:#fff;color:#c85a0b;border:1.5px solid var(--orange)}
+  .btn.dark{background:#33271b}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+  .bar .grow{flex:1;min-width:160px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+  .stat small{color:var(--muted);display:block;font-size:12.5px}
+  .stat b{font-size:20px}
+  .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:#fff;max-height:66vh}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;white-space:nowrap}
+  th,td{padding:8px 10px;border-bottom:1px solid #f0e8d8;text-align:left}
+  th{position:sticky;top:0;background:#fde7c8;z-index:1}
+  td.num{text-align:right}
+  tr:hover td{background:#fffaf0}
+  tr.cont td{background:#fbf7ee;border-bottom-style:dashed}
+  tr.cont td:first-child{color:#b9a98c}
+  .msg{margin:10px 0;font-size:14px;color:var(--muted)}
+  .msg.err{color:#8c1d18;background:#fdecea;border:1px solid #f3b8b3;border-radius:10px;padding:10px 12px}
+  #login{max-width:420px;margin:12vh auto}
+  .stockgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0}
+  .stockgrid label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px;font-weight:600}
+  .stockgrid .in{width:100%}
+  .ok{color:var(--ok);font-weight:700}
+
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg button{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:0 14px;min-height:42px;font-size:14.5px;font-weight:700;cursor:pointer;color:var(--ink)}
+  .seg button.on{background:var(--orange);border-color:var(--orange);color:#fff}
+  .seg button .n{opacity:.8;font-weight:600;margin-left:4px}
+  .seg.chips button{min-height:36px;font-size:13.5px}
+  .seg.chips button.on{background:#33271b;border-color:#33271b}
+  .lbl{font-size:12.5px;color:var(--muted);margin:10px 0 4px;font-weight:700}
+  .tag{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:800}
+  .tag.paid{background:#e8f5e9;color:var(--ok)} .tag.wait{background:#fff0d6;color:#a35a00}
+  .tag.ship{background:#e3eefc;color:#1c5db0}
+  .chk{width:22px;height:22px;accent-color:#e5701a;cursor:pointer;vertical-align:middle;margin-right:6px}
+  .chk.s{accent-color:#1c5db0}
+  .ts{font-size:12px;color:var(--muted)}
+  .trk{width:150px;border:1.5px solid var(--line);border-radius:8px;padding:0 8px;min-height:34px;font-size:13.5px}
+  .trk.saved{border-color:var(--ok);background:#f1f8f1}
+  .trk.err{border-color:var(--red);background:#fdecea}
+  .act{border:1.5px solid var(--line);background:#fff;border-radius:8px;min-height:32px;padding:0 10px;font-size:12.5px;font-weight:800;cursor:pointer;margin-right:4px}
+  .act.go{border-color:var(--orange);color:#c85a0b}
+  .act.undo{color:var(--muted)}
+  .act[disabled]{opacity:.5;cursor:wait}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="login" class="card">
+    <h1>주문 관리</h1>
+    <p class="msg">관리자 비밀번호를 입력하세요.</p>
+    <form id="loginForm" style="display:flex;gap:8px">
+      <input class="in" id="pw" type="password" autocomplete="current-password" placeholder="비밀번호" style="flex:1">
+      <button class="btn" type="submit" id="loginBtn">확인</button>
+    </form>
+    <div class="msg err" id="loginErr" hidden></div>
+  </div>
+
+  <div id="app" hidden>
+    <h1>주문 관리</h1>
+
+    <div class="card" id="stockCard" style="margin-bottom:14px">
+      <b>재고 관리 (남은 박스 수)</b>
+      <p class="msg" style="margin:4px 0 0">값을 고치고 ‘재고 저장’을 누르세요. 비워 두면 무제한입니다. 주문이 접수되면 자동으로 차감되고, 0이 되면 고객 화면에 ‘품절’로 표시됩니다.</p>
+      <div class="stockgrid">
+        <div><label for="st-special">특품 5kg</label><input class="in" id="st-special" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
+        <div><label for="st-grade">상품 10kg</label><input class="in" id="st-grade" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
+        <div><label for="st-normal">보통 10kg</label><input class="in" id="st-normal" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
+      </div>
+      <button class="btn" id="saveStock" type="button">재고 저장</button>
+      <span class="msg" id="stockMsg" style="margin-left:8px"></span>
+      <p class="msg" style="margin:8px 0 0">※ 입금되지 않아 주문을 취소한 경우, 해당 수량을 직접 더해서 저장해 주세요.</p>
+    </div>
+
+    <div class="lbl">진행 상태</div>
+    <div class="seg" id="tabs"></div>
+    <div class="lbl">상품별 보기</div>
+    <div class="seg chips" id="prods"></div>
+
+    <div class="stats" id="stats"></div>
+    <div class="bar">
+      <input class="in grow" id="q" type="search" placeholder="이름·전화·주소·주문번호·입금자명 검색">
+      <label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="onlyToday"> 오늘 접수만</label>
+      <label style="display:flex;gap:6px;align-items:center;font-size:14px"><input type="checkbox" id="showDone"> 발송 완료 건도 보기</label>
+      <button class="btn ghost" id="reload" type="button">새로고침</button>
+      <button class="btn dark" id="bulkShip" type="button" hidden>표시된 주문 모두 출고 처리</button>
+      <button class="btn" id="xlsx" type="button">엑셀 다운로드</button>
+      <button class="btn dark" id="cjxlsx" type="button">CJ 송장 양식 다운로드</button>
+    </div>
+    <div class="msg" id="count"></div>
+    <div class="msg err" id="actErr" hidden></div>
+    <div class="tablewrap"><table id="tbl"></table></div>
+    <p class="msg" style="font-size:12px">화면 버전 2026-11-06-e · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
+    <p class="msg">
+      · <b>입금확인</b> 칸을 체크하면 ‘발송 대기’로 넘어가고, <b>출고</b> 칸을 체크하면 ‘발송 완료’로 넘어갑니다. 실수했다면 체크를 해제하면 됩니다. 체크한 시각이 함께 기록됩니다.<br>
+      · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
+      · ‘발송 대기’는 <b>입금 확인한 순서</b>대로 보여줍니다. 입금 순서대로 배송하는 기준으로 쓰세요.
+    </p>
+    <p class="msg">· <b>CJ 송장 양식 다운로드</b>: 지금 화면에 보이는 줄을 CJ 업로드 양식(보내는분 성명 … 품목명) 순서 그대로 내려받습니다. 메시지1은 특과/중과/소과, 박스수량은 주문 수량이며, 상품이 2가지 이상이면 다음 줄에 이어서 들어갑니다. <b>‘발송 대기’ 탭</b>에서 받으면 입금 확인된 미발송 건만 담깁니다. (보내는분·기본운임·품목명은 CJ 양식 샘플처럼 비워 둡니다)</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Apps Script 배포 후 받은 웹 앱 URL (index.html 의 API_URL 과 같은 값)
+const API_URL = 'https://script.google.com/macros/s/AKfycbxxqVAMqSJ-gJ_WL8ZMAB6yLAPBHeNqgKxxuQzOLkx0BEqsGU00s62YBWXKNyek9b96bw/exec';
+
+const $ = (id) => document.getElementById(id);
+const won = (n) => Number(n || 0).toLocaleString('ko-KR');
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let KEY = '', HEADERS = [], ROWS = [];
+let TAB = 'all', PROD = 'all';
+
+const PRODUCTS = [
+  { key:'special', label:'특품 5kg',  line:'특품5kg',  cj:'특과', price:38000 },
+  { key:'grade',   label:'상품 10kg', line:'상품10kg', cj:'중과', price:34000 },
+  { key:'normal',  label:'보통 10kg', line:'보통10kg', cj:'소과', price:24000 },
+];
+// 한 주문에 상품이 여러 가지면 상품마다 한 줄씩이고, 주문번호는 261105-0001 / 261105-0001-2 …
+const baseNo = (no) => { const m = String(no || '').trim().match(/^(\d{6}-\d{4})(?:-\d+)?$/); return m ? m[1] : String(no || '').trim(); };
+const isCont = (r) => /-\d+$/.test(String(r[H('주문번호')] || '').replace(/^\d{6}-\d{4}/, ''));
+const TABS = [
+  { key:'all',    label:'발송 전 전체' },
+  { key:'unpaid', label:'입금 대기' },
+  { key:'ready',  label:'발송 대기 (입금확인·미발송)' },
+  { key:'done',   label:'발송 완료' },
+];
+const OFF = /^(x|n|no|0|미확인|미|취소|대기|아니오|안함)$/i;
+const isOn = (v) => { const s = String(v == null ? '' : v).trim(); return s !== '' && !OFF.test(s); };
+const H = (name) => HEADERS.indexOf(name);
+// 표·엑셀에 보여줄 열 순서 [시트 열 이름, 화면에 표시할 이름]
+const VIEW = [
+  ['접수시각'], ['받는분 이름'], ['받는분 전화번호'], ['주소'], ['메시지1'], ['수량'],
+  ['이름', '주문자 이름'], ['전화번호', '주문자 전화번호'],
+  ['결제금액(원)'], ['입금자명'], ['입금확인'], ['출고'], ['송장번호'],
+];
+// 복수주문: 같은 주문자 전화번호 + 같은 입금자명(복수주문 표시 제외)의 주문을 한 묶음으로 봅니다 (한 번에 입금하는 건)
+const MULTI = /\s*\(복수주문\)\s*$/;
+function groupKey(r){
+  const dep = String(r[H('입금자명')] || '');
+  if(!MULTI.test(dep)) return null;
+  return String(r[H('전화번호')] || '').replace(/\D/g,'') + '|' + dep.replace(MULTI, '');
+}
+function groupOf(r){                       // 묶음 입금 건의 모든 줄
+  const k = groupKey(r); if(!k) return null;
+  return ROWS.filter(x => groupKey(x) === k);
+}
+const orderCount = (rows) => new Set(rows.map(r => baseNo(r[H('주문번호')]))).size;
+const viewCols = () => VIEW.map(v => ({ idx: H(v[0]), label: v[1] || v[0] })).filter(c => c.idx >= 0);
+
+function fmtPhone(p){
+  const d = String(p || '').replace(/\D/g,'');
+  if(d.length === 11) return d.replace(/(\d{3})(\d{4})(\d{4})/,'$1-$2-$3');
+  if(d.length === 10) return d.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3');
+  return p;
+}
+async function call(body){
+  if(!API_URL) throw new Error('admin.html 의 API_URL 이 비어 있습니다. Apps Script 웹 앱 URL 을 넣어 주세요.');
+  const r = await fetch(API_URL, { method:'POST', body: JSON.stringify(Object.assign({ key: KEY }, body)) });
+  const j = await r.json();
+  if(!j.ok) throw new Error(j.error || '요청에 실패했습니다.');
+  return j;
+}
+async function fetchList(){
+  const j = await call({ action:'list' });
+  HEADERS = j.headers; ROWS = j.rows; fillStock(j.stock);
+}
+
+/* ---------- 재고 ---------- */
+const STOCK_KEYS = ['special','grade','normal'];
+function fillStock(stock){
+  STOCK_KEYS.forEach(k => { $('st-' + k).value = (stock && typeof stock[k] === 'number') ? stock[k] : ''; });
+}
+$('saveStock').addEventListener('click', async () => {
+  const stock = {}; STOCK_KEYS.forEach(k => { stock[k] = $('st-' + k).value.trim(); });
+  $('saveStock').disabled = true; $('stockMsg').className = 'msg'; $('stockMsg').textContent = '저장 중…';
+  try{
+    const j = await call({ action:'setStock', stock });
+    fillStock(j.stock); $('stockMsg').className = 'msg ok'; $('stockMsg').textContent = '저장되었습니다 ✓';
+  }catch(err){
+    $('stockMsg').className = 'msg err'; $('stockMsg').textContent = err.message;
+  }
+  $('saveStock').disabled = false;
+});
+
+/* ---------- 로그인 / 새로고침 ---------- */
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  KEY = $('pw').value; $('loginBtn').disabled = true; $('loginErr').hidden = true;
+  try{
+    await fetchList();
+    $('login').hidden = true; $('app').hidden = false; render();
+  }catch(err){
+    $('loginErr').textContent = err.message; $('loginErr').hidden = false; KEY = '';
+  }finally{ $('loginBtn').disabled = false; }
+});
+$('reload').addEventListener('click', async () => {
+  $('reload').disabled = true;
+  try{ await fetchList(); render(); }catch(err){ showActErr(err.message); }
+  $('reload').disabled = false;
+});
+$('q').addEventListener('input', render);
+$('onlyToday').addEventListener('change', render);
+$('showDone').addEventListener('change', render);
+function showActErr(msg){ const b = $('actErr'); b.textContent = msg || ''; b.hidden = !msg; }
+
+/* ---------- 조회: 검색·오늘·상품 → 상태 탭 ---------- */
+function todayStr(){
+  const d = new Date(); const p = (n) => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+const st = (r) => {                       // 한 주문의 진행 상태
+  const paid = isOn(r[H('입금확인')]), shipped = isOn(r[H('출고')]);
+  return shipped ? 'done' : paid ? 'ready' : 'unpaid';
+};
+const minuteKey = (v, fallback) => {      // 정렬용 'MM-dd HH:mm'
+  const m = String(v || '').match(/(\d{2}-\d{2} \d{2}:\d{2})/);
+  return m ? m[1] : String(fallback || '').slice(5, 16);
+};
+function baseRows(){                      // 상태 탭을 적용하기 전(탭 숫자 계산용)
+  const q = $('q').value.trim().toLowerCase(), today = todayStr(), only = $('onlyToday').checked;
+  const pl = PROD === 'all' ? '' : PRODUCTS.find(p => p.key === PROD).line;
+  let hit = null;                         // 검색어: 한 주문의 어느 줄에든 있으면 그 주문의 모든 줄을 보여줌
+  if(q){ hit = new Set(); ROWS.forEach(r => { if(r.some(c => String(c).toLowerCase().includes(q))) hit.add(baseNo(r[H('주문번호')])); }); }
+  return ROWS.filter(r => {
+    if(only && !String(r[H('접수시각')]).startsWith(today)) return false;
+    if(pl && String(r[H('메시지1')]) !== pl) return false;
+    if(hit && !hit.has(baseNo(r[H('주문번호')]))) return false;
+    return true;
+  });
+}
+// ‘전체’ 탭은 발송 완료 건을 숨깁니다. ‘발송 완료 건도 보기’를 체크하거나 검색어가 있으면 포함합니다. (‘발송 완료’ 탭은 항상 보여줌)
+const hideDone = (rows) => ($('showDone').checked || $('q').value.trim()) ? rows : rows.filter(r => st(r) !== 'done');
+function view(){
+  let rows = baseRows();
+  if(TAB !== 'all') rows = rows.filter(r => st(r) === TAB);
+  else rows = hideDone(rows);
+  // 같은 주문의 줄들은 항상 붙어 있게, 주문 단위로 정렬합니다. (ROWS 는 접수 순: 오래된 것이 앞)
+  const blocks = [], idx = {};
+  rows.forEach(r => { const b = baseNo(r[H('주문번호')]); if(idx[b] === undefined){ idx[b] = blocks.length; blocks.push([]); } blocks[idx[b]].push(r); });
+  if(TAB === 'ready') blocks.sort((a, b) => {
+    const ka = minuteKey(a[0][H('입금확인')], a[0][H('접수시각')]), kb = minuteKey(b[0][H('입금확인')], b[0][H('접수시각')]);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;   // 입금 확인한 순서(= 배송 순서)
+  });
+  else if(TAB !== 'unpaid') blocks.reverse();  // 전체·발송완료: 최신 위
+  return [].concat.apply([], blocks);          // 입금 대기: 오래된 것 위(독촉 대상)
+}
+
+/* ---------- 화면 ---------- */
+function renderControls(){
+  const base = baseRows(), cnt = { all: hideDone(base).length, unpaid:0, ready:0, done:0 };
+  base.forEach(r => cnt[st(r)]++);
+  const incl = $('showDone').checked || $('q').value.trim();
+  $('tabs').innerHTML = TABS.map(t => { const lb = (t.key === 'all' && incl) ? '전체 (발송 완료 포함)' : t.label; return `<button type="button" data-tab="${t.key}" class="${TAB === t.key ? 'on' : ''}">${lb}<span class="n">${cnt[t.key]}</span></button>`; }).join('');
+  $('prods').innerHTML = [{ key:'all', label:'전체 상품' }].concat(PRODUCTS).map(p => `<button type="button" data-prod="${p.key}" class="${PROD === p.key ? 'on' : ''}">${p.label}</button>`).join('');
+}
+function render(){
+  renderControls();
+  const rows = view();
+  const sum = (n) => rows.reduce((s, r) => s + Number(r[H(n)] || 0), 0);
+  const boxes = (line) => rows.reduce((s, r) => s + (String(r[H('메시지1')]) === line ? Number(r[H('수량')] || 0) : 0), 0);
+  $('stats').innerHTML = [
+    ['주문 건수', orderCount(rows) + '건 (' + rows.length + '줄)'],
+    ['특품 5kg', boxes('특품5kg') + '박스'],
+    ['상품 10kg', boxes('상품10kg') + '박스'],
+    ['보통 10kg', boxes('보통10kg') + '박스'],
+    ['결제 금액 합계', won(sum('결제금액(원)')) + '원'],
+  ].map(([k,v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
+  const label = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '');
+  const pl = PROD === 'all' ? '' : ' · ' + PRODUCTS.find(p => p.key === PROD).label;
+  $('count').textContent = `${label}${pl} — 전체 ${orderCount(ROWS)}건 중 ${orderCount(rows)}건 (${rows.length}줄) 표시` + ((TAB === 'all' && !$('showDone').checked && !$('q').value.trim() && ROWS.some(r => st(r) === 'done')) ? ' (발송 완료 건 제외)' : '');
+  $('bulkShip').hidden = !(TAB === 'ready' && rows.length > 0);
+  $('bulkShip').textContent = `표시된 ${orderCount(rows)}건 모두 출고 처리`;
+
+  const cols = viewCols(), phoneIdx = [H('전화번호'), H('받는분 전화번호')];
+  const mi = H('결제금액(원)'), ni = H('주문번호'), ai = H('입금확인'), si = H('출고');
+  $('tbl').innerHTML = '<thead><tr>' + cols.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr></thead><tbody>' +
+    rows.map(r => {
+      const paid = isOn(r[ai]), shipped = isOn(r[si]), no = esc(r[ni]), cont = isCont(r);
+      const cells = cols.map(({ idx: i }) => {
+        const c = r[i];
+        let t = esc(c);
+        if(phoneIdx.indexOf(i) >= 0) t = esc(fmtPhone(c));
+        else if(i === mi) t = (c === '' || c == null) ? '' : esc(won(c));
+        else if(i === H('입금자명') && groupKey(r)){
+          const g = groupOf(r), gs = g.reduce((a, x) => a + Number(x[mi] || 0), 0);
+          t = esc(c) + (cont ? '' : `<br><span class="tag wait" title="같은 주문자의 묶음 입금 건">합산 ${orderCount(g)}건 · ${won(gs)}원</span>`);
+        }
+        else if(i === ai) t = `<label style="cursor:pointer"><input type="checkbox" class="chk" data-no="${no}" data-field="paid" ${paid ? 'checked' : ''}><span class="ts">${paid ? esc(c) : '입금 대기'}</span></label>`;
+        else if(i === H('송장번호')) t = `<input class="trk" data-no="${no}" data-old="${esc(c)}" value="${esc(c)}" placeholder="송장번호" inputmode="numeric" maxlength="40">`;
+        else if(i === si) t = `<label style="cursor:pointer"><input type="checkbox" class="chk s" data-no="${no}" data-field="shipped" ${shipped ? 'checked' : ''}><span class="ts">${shipped ? esc(c) : ''}</span></label>`;
+        return `<td class="${i === mi ? 'num' : ''}">${t}</td>`;
+      }).join('');
+      return `<tr${cont ? ' class="cont"' : ''}>${cells}</tr>`;
+    }).join('') + '</tbody>';
+}
+
+/* ---------- 탭·상품 선택 ---------- */
+$('tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if(b){ TAB = b.dataset.tab; render(); } });
+$('prods').addEventListener('click', (e) => { const b = e.target.closest('[data-prod]'); if(b){ PROD = b.dataset.prod; render(); } });
+
+/* ---------- 입금확인 / 출고 처리 ---------- */
+async function setStatus(nos, field, on){
+  showActErr('');
+  const j = await call({ action:'setStatus', orderNos: nos, field, value: on });
+  const col = H(field === 'paid' ? '입금확인' : '출고'), ni = H('주문번호');
+  ROWS.forEach(r => { if(j.updated.indexOf(baseNo(r[ni])) >= 0) r[col] = j.value; });
+  if(j.missing && j.missing.length) showActErr('찾지 못한 주문: ' + j.missing.join(', ') + ' (새로고침 후 다시 확인하세요)');
+  render();
+}
+$('tbl').addEventListener('change', async (e) => {
+  const b = e.target.closest('input.chk'); if(!b) return;
+  const no = b.dataset.no, field = b.dataset.field, on = b.checked;
+  if(on && field === 'shipped'){
+    const row = ROWS.find(r => String(r[H('주문번호')]) === no);
+    if(row && !isOn(row[H('입금확인')]) && !confirm('입금이 확인되지 않은 주문입니다. 그래도 출고 처리할까요?')){ b.checked = false; return; }
+  }
+  let targets = [no];
+  if(on && field === 'paid'){
+    const row = ROWS.find(r => String(r[H('주문번호')]) === no), g = row && groupOf(row);
+    if(g && orderCount(g) > 1){
+      const rest = g.filter(x => !isOn(x[H('입금확인')]));
+      const restNos = Array.from(new Set(rest.map(x => baseNo(x[H('주문번호')]))));
+      if(restNos.length > 1 && confirm(`같은 주문자의 복수주문 ${orderCount(g)}건(합계 ${won(g.reduce((a, x) => a + Number(x[H('결제금액(원)')] || 0), 0))}원) 중 입금 확인 안 된 ${restNos.length}건을 모두 입금확인할까요?\n[확인] 전체 ${restNos.length}건 · [취소] 이 건만`))
+        targets = restNos;
+    }
+  }
+  b.disabled = true;
+  try{ await setStatus(targets, field, on); }catch(err){ showActErr(err.message); b.checked = !on; b.disabled = false; }
+});
+/* ---------- 송장번호 입력: 칸을 벗어나거나 Enter 를 누르면 저장 ---------- */
+$('tbl').addEventListener('change', async (e) => {
+  const inp = e.target.closest('input.trk'); if(!inp) return;
+  const no = inp.dataset.no, val = inp.value.replace(/[^0-9A-Za-z\-]/g, '').trim();
+  inp.value = val;
+  if(val === (inp.dataset.old || '')) return;
+  inp.disabled = true; showActErr('');
+  try{
+    const j = await call({ action:'setTracking', orderNo: no, tracking: val });
+    if(j.missing && j.missing.length) throw new Error('주문을 찾지 못했습니다. 새로고침 후 다시 시도해 주세요.');
+    const row = ROWS.find(r => String(r[H('주문번호')]) === no); if(row) row[H('송장번호')] = j.saved[no];
+    inp.dataset.old = j.saved[no]; inp.value = j.saved[no];
+    inp.classList.remove('err'); inp.classList.add('saved'); setTimeout(() => inp.classList.remove('saved'), 1500);
+  }catch(err){ inp.classList.add('err'); showActErr('송장번호 저장 실패: ' + err.message); }
+  inp.disabled = false;
+});
+$('tbl').addEventListener('keydown', (e) => { if(e.key === 'Enter' && e.target.classList.contains('trk')){ e.preventDefault(); e.target.blur(); } });
+$('bulkShip').addEventListener('click', async () => {
+  const rows = view(), ni = H('주문번호');
+  if(!rows.length) return;
+  if(!confirm(`발송 대기 ${orderCount(rows)}건을 모두 '출고' 처리합니다.\n택배 접수를 마치셨나요? (되돌리려면 건별로 체크를 해제해야 합니다)`)) return;
+  $('bulkShip').disabled = true;
+  try{ await setStatus(Array.from(new Set(rows.map(r => baseNo(r[ni])))), 'shipped', true); }catch(err){ showActErr(err.message); }
+  $('bulkShip').disabled = false;
+});
+
+/* ---------- CJ 송장 양식 다운로드: 업로드 양식(CJ 제공 파일)의 열 순서 그대로 ---------- */
+const CJ_HEAD = ['보내는분 성명','보내는분전화번호','보내는분주소(전체, 분활)','받는분성명','받는 분전화번호','받는분주소(전체, 분할)','메시지1','기본운임','박스수량','품목명'];
+const CJ_MSG = {}; PRODUCTS.forEach(p => { CJ_MSG[p.line] = p.cj; });
+$('cjxlsx').addEventListener('click', () => {
+  const rows = view().filter(r => Number(r[H('수량')]) > 0);   // 같은 주문의 줄은 붙어서 나옵니다
+  if(!rows.length){ showActErr('내려받을 주문이 없습니다. (‘발송 대기’ 탭에서 받는 것을 권장합니다)'); return; }
+  showActErr('');
+  const unpaid = orderCount(rows.filter(r => !isOn(r[H('입금확인')])));
+  if(unpaid > 0 && !confirm(`입금확인이 안된 건이 있습니다. (${unpaid}건)\n그래도 다운로드 받겠습니까?`)) return;
+  const data = [CJ_HEAD].concat(rows.map(r => [
+    '', '', '',
+    r[H('받는분 이름')], fmtPhone(r[H('받는분 전화번호')]), r[H('주소')],
+    CJ_MSG[String(r[H('메시지1')])] || r[H('메시지1')], '', Number(r[H('수량')]), '',
+  ]));
+  const d = new Date(), p = (n) => String(n).padStart(2,'0');
+  const fname = `CJ송장_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  if(window.XLSX){
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [16.25,16,20,11.83,15.16,80.16,10,10,10,14].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, d.getDate() + '일배송분');
+    XLSX.writeFile(wb, fname + '.xlsx');
+  } else {
+    const csv = '﻿' + data.map(r => r.map(c => '"' + String(c == null ? '' : c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+    a.download = fname + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  }
+});
+
+/* ---------- 엑셀 다운로드: 현재 조회 조건 그대로 ---------- */
+$('xlsx').addEventListener('click', () => {
+  const shown = view();
+  let rows = shown;                                   // 배송·독촉 순서 유지, 그 외는 접수 순(주문 단위로 뒤집어 줄 순서는 유지)
+  if(!(TAB === 'ready' || TAB === 'unpaid')){
+    const bl = [], ix = {};
+    shown.forEach(r => { const b = baseNo(r[H('주문번호')]); if(ix[b] === undefined){ ix[b] = bl.length; bl.push([]); } bl[ix[b]].push(r); });
+    rows = [].concat.apply([], bl.reverse());
+  }
+  const cols = viewCols(), phoneIdx = [H('전화번호'), H('받는분 전화번호')];
+  const data = [cols.map(c => c.label)].concat(rows.map(r => cols.map(({ idx: i }) => phoneIdx.indexOf(i) >= 0 ? fmtPhone(r[i]) : r[i])));
+  const d = new Date(), p = (n) => String(n).padStart(2,'0');
+  const stamp = `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  const tabName = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '').replace(/ /g, '');
+  const prodName = PROD === 'all' ? '' : '_' + PRODUCTS.find(p => p.key === PROD).label.replace(/ /g, '');
+  const fname = `감주문_${tabName}${prodName}_${stamp}`;
+
+  // 집계 시트: 상품별 주문 건수·박스·금액
+  const summary = [['상품', '주문 건수', '박스 수', '합계 박스 금액(참고)']].concat(PRODUCTS.map(pr => {
+    const mine = rows.filter(r => String(r[H('메시지1')]) === pr.line), b = mine.reduce((s, r) => s + Number(r[H('수량')] || 0), 0);
+    return [pr.label, orderCount(mine), b, b * pr.price];
+  }));
+  summary.push(['전체 주문', orderCount(rows), '', rows.reduce((s, r) => s + Number(r[H('결제금액(원)')] || 0), 0)]);
+
+  if(window.XLSX){
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = cols.map(({ label: h }) => ({ wch: /주소/.test(h) ? 50 : /시각|입금확인|출고/.test(h) ? 19 : 13 }));
+    const ws2 = XLSX.utils.aoa_to_sheet(summary); ws2['!cols'] = [{wch:16},{wch:12},{wch:10},{wch:22}];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '주문'); XLSX.utils.book_append_sheet(wb, ws2, '집계');
+    XLSX.writeFile(wb, fname + '.xlsx');
+  } else {
+    // 엑셀 라이브러리를 못 불러온 경우: 엑셀에서 열리는 CSV 로 대체
+    const csv = '﻿' + data.map(r => r.map(c => '"' + String(c == null ? '' : c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+    a.download = fname + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  }
+});
+</script>
+</body>
+</html>
