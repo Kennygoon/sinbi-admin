@@ -249,13 +249,13 @@ function render(){
   $('bulkShip').hidden = !(TAB === 'ready' && rows.length > 0);
   $('bulkShip').textContent = `표시된 ${rows.length}건 모두 출고 처리`;
 
-  const pi = H('전화번호'), mi = H('결제금액(원)'), ni = H('주문번호'), ai = H('입금확인'), si = H('출고');
+  const pi = H('전화번호'), pr = H('받는분 전화번호'), mi = H('결제금액(원)'), ni = H('주문번호'), ai = H('입금확인'), si = H('출고');
   $('tbl').innerHTML = '<thead><tr>' + HEADERS.map(h => `<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>' +
     rows.map(r => {
       const paid = isOn(r[ai]), shipped = isOn(r[si]), no = esc(r[ni]);
       const cells = r.map((c, i) => {
         let t = esc(c);
-        if(i === pi) t = esc(fmtPhone(c));
+        if(i === pi || i === pr) t = esc(fmtPhone(c));
         else if(i === mi) t = esc(won(c));
         else if(i === ai) t = `<label style="cursor:pointer"><input type="checkbox" class="chk" data-no="${no}" data-field="paid" ${paid ? 'checked' : ''}><span class="ts">${paid ? esc(c) : '입금 대기'}</span></label>`;
         else if(i === si) t = `<label style="cursor:pointer"><input type="checkbox" class="chk s" data-no="${no}" data-field="shipped" ${shipped ? 'checked' : ''}><span class="ts">${shipped ? esc(c) : ''}</span></label>`;
@@ -302,7 +302,7 @@ $('xlsx').addEventListener('click', () => {
   const shown = view();
   const rows = (TAB === 'ready' || TAB === 'unpaid') ? shown : shown.slice().reverse();   // 배송·독촉 순서 유지, 그 외는 접수 순
   const pi = H('전화번호');
-  const data = [HEADERS].concat(rows.map(r => r.map((c, i) => i === pi ? fmtPhone(c) : c)));
+  const data = [HEADERS].concat(rows.map(r => r.map((c, i) => (i === pi || i === H('받는분 전화번호')) ? fmtPhone(c) : c)));
   const d = new Date(), p = (n) => String(n).padStart(2,'0');
   const stamp = `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   const tabName = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '').replace(/ /g, '');
