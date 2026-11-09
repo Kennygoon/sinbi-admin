@@ -108,7 +108,7 @@
     <div class="msg" id="count"></div>
     <div class="msg err" id="actErr" hidden></div>
     <div class="tablewrap"><table id="tbl"></table></div>
-    <p class="msg" style="font-size:12px">화면 버전 2026-11-06-g · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
+    <p class="msg" style="font-size:12px">화면 버전 2026-11-09-a · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
     <p class="msg">
       · <b>입금확인</b> 칸을 체크하면 ‘발송 대기’로 넘어가고, <b>출고</b> 칸을 체크하면 ‘발송 완료’로 넘어갑니다. 실수했다면 체크를 해제하면 됩니다. 체크한 시각이 함께 기록됩니다.<br>
       · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
@@ -132,7 +132,7 @@ let TAB = 'all', PROD = 'all';
 const PRODUCTS = [
   { key:'special', label:'특품 5kg',  line:'특과',  cj:'특과', cjName:'단감(특품)', freight:4000, price:38000 },
   { key:'grade',   label:'상품 10kg', line:'중과', cj:'중과', cjName:'단감(중과)', freight:4500, price:34000 },
-  { key:'normal',  label:'보통 10kg', line:'소과', cj:'소과', cjName:'단감(소과)', freight:4500, price:24000 },
+  { key:'normal',  label:'보통 10kg', line:'소과', cj:'소과', cjName:'단감(소과)', freight:4500, price:19000 },
 ];
 // 한 주문에 상품이 여러 가지면 상품마다 한 줄씩이고, 주문번호는 261105-0001 / 261105-0001-2 …
 const baseNo = (no) => { const m = String(no || '').trim().match(/^(\d{6}-\d{4})(?:-\d+)?$/); return m ? m[1] : String(no || '').trim(); };
