@@ -79,8 +79,10 @@
 
     <div class="card" id="stockCard" style="margin-bottom:14px">
       <b>재고 관리 (남은 박스 수)</b>
-      <p class="msg" style="margin:4px 0 0">값을 고치고 ‘재고 저장’을 누르세요. 비워 두면 무제한입니다. 주문이 접수되면 자동으로 차감되고, 0이 되면 고객 화면에 ‘품절’로 표시됩니다.</p>
+      <p class="msg" style="margin:4px 0 0">값을 고치고 ‘재고 저장’을 누르세요. 비워 두면 무제한입니다. 주문이 접수되면 자동으로 차감되고, 0이 되면 고객 화면의 상품 선택에서 사라집니다.</p>
       <div class="stockgrid">
+        <div><label for="st-dbdm">대봉감 대+중 11.5kg</label><input class="in" id="st-dbdm" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
+        <div><label for="st-dbso">대봉감 소 11.5kg</label><input class="in" id="st-dbso" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
         <div><label for="st-special">특품 5kg</label><input class="in" id="st-special" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
         <div><label for="st-grade">상품 10kg</label><input class="in" id="st-grade" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
         <div><label for="st-normal">보통 10kg</label><input class="in" id="st-normal" type="number" min="0" inputmode="numeric" placeholder="무제한"></div>
@@ -108,7 +110,7 @@
     <div class="msg" id="count"></div>
     <div class="msg err" id="actErr" hidden></div>
     <div class="tablewrap"><table id="tbl"></table></div>
-    <p class="msg" style="font-size:12px">화면 버전 2026-11-09-a · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
+    <p class="msg" style="font-size:12px">화면 버전 2026-11-15-a · ‘발송 전 전체’ 탭은 발송 완료 건을 숨깁니다. 발송 완료 건은 검색하거나 ‘발송 완료 건도 보기’를 체크하거나 ‘발송 완료’ 탭에서 볼 수 있습니다.</p>
     <p class="msg">
       · <b>입금확인</b> 칸을 체크하면 ‘발송 대기’로 넘어가고, <b>출고</b> 칸을 체크하면 ‘발송 완료’로 넘어갑니다. 실수했다면 체크를 해제하면 됩니다. 체크한 시각이 함께 기록됩니다.<br>
       · 구글 시트의 <b>입금확인 · 출고</b> 칸에 직접 아무 글자나 적어도 같은 의미입니다. (비어 있거나 ‘X·N·미확인·취소’면 아직 아님)<br>
@@ -130,6 +132,8 @@ let KEY = '', HEADERS = [], ROWS = [];
 let TAB = 'all', PROD = 'all';
 
 const PRODUCTS = [
+  { key:'dbdm',    label:'대봉감 대+중 11.5kg', line:'대봉대중', cj:'대봉대중', cjName:'대봉감(대+중)', freight:4500, price:35000 },
+  { key:'dbso',    label:'대봉감 소 11.5kg',    line:'대봉소',   cj:'대봉소',   cjName:'대봉감(소)',   freight:4500, price:29000 },
   { key:'special', label:'특품 5kg',  line:'특과',  cj:'특과', cjName:'단감(특품)', freight:4000, price:38000 },
   { key:'grade',   label:'상품 10kg', line:'중과', cj:'중과', cjName:'단감(중과)', freight:4500, price:34000 },
   { key:'normal',  label:'보통 10kg', line:'소과', cj:'소과', cjName:'단감(소과)', freight:4500, price:19000 },
@@ -187,7 +191,7 @@ async function fetchList(){
 }
 
 /* ---------- 재고 ---------- */
-const STOCK_KEYS = ['special','grade','normal'];
+const STOCK_KEYS = ['dbdm','dbso','special','grade','normal'];
 function fillStock(stock){
   STOCK_KEYS.forEach(k => { $('st-' + k).value = (stock && typeof stock[k] === 'number') ? stock[k] : ''; });
 }
@@ -281,9 +285,7 @@ function render(){
   const boxes = (line) => rows.reduce((s, r) => s + (lineOf(r) === line ? Number(r[H('수량')] || 0) : 0), 0);
   $('stats').innerHTML = [
     ['주문 건수', orderCount(rows) + '건 (' + rows.length + '줄)'],
-    ['특품 5kg', boxes('특과') + '박스'],
-    ['상품 10kg', boxes('중과') + '박스'],
-    ['보통 10kg', boxes('소과') + '박스'],
+    ...PRODUCTS.map(p => [p.label, boxes(p.line) + '박스']),
     ['결제 금액 합계', won(sum('결제금액(원)')) + '원'],
   ].map(([k,v]) => `<div class="stat"><small>${k}</small><b>${v}</b></div>`).join('');
   const label = TABS.find(t => t.key === TAB).label.replace(/ \(.*\)/, '');
